@@ -1,0 +1,23 @@
+[
+    {
+        "id": "01",
+        "username": "user01",
+        "active": true,
+        "locked": false,
+        "createdDate": "2009-12-31T23:59:59.999+07:00"
+    },
+    {
+        "id": "02",
+        "username": "user02",
+        "active": true,
+        "locked": false,
+        "createdDate": "2009-12-31T23:59:59.999+07:00"
+    },
+    {
+        "id": "03",
+        "username": "user03",
+        "active": true,
+        "locked": false,
+        "createdDate": "2009-12-31T23:59:59.999+07:00"
+    }
+]

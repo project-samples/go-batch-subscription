@@ -1,0 +1,38 @@
+server:
+  name: go-batch-consumer
+  port: 8080
+
+log:
+  level: info
+  map:
+    time: "@timestamp"
+    msg: message
+
+mongo:
+  uri: mongodb://@localhost:27017
+  database: master_data
+
+batch_worker:
+  batch_size: 100
+  timeout: 10
+  limit_retry: 3
+
+kafka_consumer:
+  brokers: tricycle-01.srvs.cloudkafka.com:9094
+  client:
+    username: ah1t9hk0
+    password: QvMB75cxJ48KYRnGfwXcRNxzALyAeb7-
+  group_id: my-group
+  topic: ah1t9hk0-default
+  max_bytes: 10485760
+  commit_interval: 1000
+
+kafka_producer:
+  brokers:
+    - tricycle-01.srvs.cloudkafka.com:9094
+    - tricycle-02.srvs.cloudkafka.com:9094
+    - tricycle-03.srvs.cloudkafka.com:9094
+  client:
+    username: ah1t9hk0
+    password: QvMB75cxJ48KYRnGfwXcRNxzALyAeb7-
+  topic: ah1t9hk0-default
