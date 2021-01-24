@@ -14,7 +14,7 @@ mongo:
 
 batch_worker:
   batch_size: 100
-  timeout: 10
+  timeout: 5000
   limit_retry: 3
 
 kafka_consumer:
