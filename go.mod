@@ -8,7 +8,7 @@ require (
 	github.com/common-go/kafka v0.2.4
 	github.com/common-go/log v0.0.5
 	github.com/common-go/mongo v0.0.7
-	github.com/common-go/mq v1.1.3
+	github.com/common-go/mq v1.1.4
 	github.com/common-go/validator v0.0.3
 	github.com/go-playground/universal-translator v0.17.0 // indirect
 	github.com/google/uuid v1.2.0 // indirect
