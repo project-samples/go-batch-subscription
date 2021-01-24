@@ -22,6 +22,7 @@ type ApplicationContext struct {
 }
 
 func NewApp(ctx context.Context, root Root) (*ApplicationContext, error) {
+	log.Initialize(root.Log)
 	mongoDb, er1 := mongo.SetupMongo(ctx, root.Mongo)
 	if er1 != nil {
 		log.Error(ctx, "Cannot connect to MongoDB: Error: "+er1.Error())
