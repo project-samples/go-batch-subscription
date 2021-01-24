@@ -25,7 +25,7 @@ func NewApp(ctx context.Context, root Root) (*ApplicationContext, error) {
 	log.Initialize(root.Log)
 	mongoDb, er1 := mongo.SetupMongo(ctx, root.Mongo)
 	if er1 != nil {
-		log.Error(ctx, "Cannot connect to MongoDB: Error: "+er1.Error())
+		log.Error(ctx, "Cannot connect to MongoDB. Error: "+er1.Error())
 		return nil, er1
 	}
 
@@ -37,12 +37,12 @@ func NewApp(ctx context.Context, root Root) (*ApplicationContext, error) {
 
 	consumer, er2 := kafka.NewConsumerByConfig(root.KafkaConsumer, true)
 	if er2 != nil {
-		log.Error(ctx, "Can't new consumer: Error: " + er2.Error())
+		log.Error(ctx, "Cannot create a new consumer. Error: " + er2.Error())
 		return nil, er2
 	}
 	producer, er3 := kafka.NewProducerByConfig(root.KafkaProducer, true)
 	if er3 != nil {
-		log.Error(ctx, "Can't new producer: Error: " + er3.Error())
+		log.Error(ctx, "Cannot new a new producer. Error: " + er3.Error())
 		return nil, er3
 	}
 
@@ -57,8 +57,9 @@ func NewApp(ctx context.Context, root Root) (*ApplicationContext, error) {
 	consumerCaller := mq.NewBatchConsumerCaller(batchWorker, validator, logError, logInfo)
 
 	mongoChecker := mongo.NewHealthChecker(mongoDb)
-	consumerChecker := kafka.NewKafkaHealthChecker(root.KafkaConsumer.Brokers)
-	checkers := []health.HealthChecker{mongoChecker, consumerChecker}
+	consumerChecker := kafka.NewKafkaHealthChecker(root.KafkaConsumer.Brokers, "kafka_consumer")
+	producerChecker := kafka.NewKafkaHealthChecker(root.KafkaProducer.Brokers, "kafka_producer")
+	checkers := []health.HealthChecker{mongoChecker, consumerChecker, producerChecker}
 	handler := health.NewHealthHandler(checkers)
 	return &ApplicationContext{
 		Consumer:       consumer,
