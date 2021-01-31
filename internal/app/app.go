@@ -51,7 +51,7 @@ func NewApp(ctx context.Context, root Root) (*ApplicationContext, error) {
 	var batchWorker mq.BatchWorker
 
 	if root.KafkaProducer != nil {
-		producer, er3 := kafka.NewProducerByConfig(*root.KafkaProducer)
+		producer, er3 := kafka.NewProducerByConfig(*root.KafkaProducer, true)
 		if er3 != nil {
 			log.Error(ctx, "Cannot new a new producer. Error: "+er3.Error())
 			return nil, er3
