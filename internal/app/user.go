@@ -3,7 +3,7 @@ package app
 import "time"
 
 type User struct {
-	Id          string     `json:"id" gorm:"column:id" bson:"_id" dynamodbav:"id,omitempty" firestore:"id,omitempty"`
+	Id          string     `json:"id" gorm:"column:id;primary_key" bson:"_id" dynamodbav:"id,omitempty" firestore:"id,omitempty"`
 	Username    string     `json:"username,omitempty" gorm:"column:username" bson:"username,omitempty" dynamodbav:"username,omitempty" firestore:"username,omitempty" validate:"username,max=100"`
 	Email       string     `json:"email,omitempty" gorm:"column:email" bson:"email,omitempty" dynamodbav:"email,omitempty" firestore:"email,omitempty" validate:"required,email,max=100"`
 	Url         string     `json:"url,omitempty" gorm:"column:url" bson:"url,omitempty" dynamodbav:"url,omitempty" firestore:"required,url,omitempty" validate:"url,max=255"`
