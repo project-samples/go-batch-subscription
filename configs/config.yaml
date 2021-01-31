@@ -24,8 +24,6 @@ kafka_consumer:
     password: QvMB75cxJ48KYRnGfwXcRNxzALyAeb7-
   group_id: my-group
   topic: ah1t9hk0-default
-  max_bytes: 10485760
-  commit_interval: 1000
 
 kafka_producer:
   brokers:
