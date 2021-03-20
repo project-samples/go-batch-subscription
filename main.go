@@ -22,6 +22,6 @@ func main() {
 	}
 
 	go health.Serve(conf.Server, app.HealthHandler)
-	app.BatchWorker.RunScheduler(ctx)
+	app.BatchWorker.Run(ctx)
 	app.Consumer.Consume(ctx, app.ConsumerHandler.Handle)
 }

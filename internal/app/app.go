@@ -41,9 +41,9 @@ func NewApp(ctx context.Context, root Root) (*ApplicationContext, error) {
 		return nil, er2
 	}
 
-	userTypeOf := reflect.TypeOf(User{})
-	bulkWriter := mongo.NewMongoBatchInserter(mongoDb, "users")
-	batchHandler := mq.NewBatchHandler(userTypeOf, bulkWriter, logError, logInfo)
+	userType := reflect.TypeOf(User{})
+	writer := mongo.NewBatchInserter(mongoDb, "users")
+	batchHandler := mq.NewBatchHandler(userType, writer.Write, logError, logInfo)
 
 	mongoChecker := mongo.NewHealthChecker(mongoDb)
 	consumerChecker := kafka.NewKafkaHealthChecker(root.KafkaConsumer.Brokers, "kafka_consumer")
@@ -56,16 +56,16 @@ func NewApp(ctx context.Context, root Root) (*ApplicationContext, error) {
 			log.Error(ctx, "Cannot new a new producer. Error: "+er3.Error())
 			return nil, er3
 		}
-		retryService := mq.NewMqRetryService(producer, logError, logInfo)
-		batchWorker = mq.NewDefaultBatchWorker(root.BatchWorkerConfig, batchHandler, retryService, logError, logInfo)
+		retryService := mq.NewMqRetryService(producer.Produce, logError, logInfo)
+		batchWorker = mq.NewDefaultBatchWorker(root.BatchWorkerConfig, batchHandler.Handle, retryService.Retry, logError, logInfo)
 		producerChecker := kafka.NewKafkaHealthChecker(root.KafkaProducer.Brokers, "kafka_producer")
 		checkers = []health.HealthChecker{mongoChecker, consumerChecker, producerChecker}
 	} else {
-		batchWorker = mq.NewDefaultBatchWorker(root.BatchWorkerConfig, batchHandler, nil, logError, logInfo)
+		batchWorker = mq.NewDefaultBatchWorker(root.BatchWorkerConfig, batchHandler.Handle, nil, logError, logInfo)
 		checkers = []health.HealthChecker{mongoChecker, consumerChecker}
 	}
-	validator := mq.NewValidator(userTypeOf, NewUserValidator(), logError)
-	consumerHandler := mq.NewBatchConsumerHandler(batchWorker, validator, logError, logInfo)
+	validator := mq.NewValidator(userType, NewUserValidator().Validate, logError)
+	consumerHandler := mq.NewBatchConsumerHandler(batchWorker.Consume, validator.Validate, logError, logInfo)
 
 	handler := health.NewHealthHandler(checkers)
 	return &ApplicationContext{
