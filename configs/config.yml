@@ -10,7 +10,7 @@ log:
 
 mongo:
   uri: mongodb://localhost:27017
-  database: master_data
+  database: masterdata
 
 batch_worker:
   batch_size: 100

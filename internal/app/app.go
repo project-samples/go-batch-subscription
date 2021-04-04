@@ -15,15 +15,15 @@ import (
 )
 
 type ApplicationContext struct {
+	HealthHandler   *health.HealthHandler
 	Consumer        mq.Consumer
 	ConsumerHandler mq.ConsumerHandler
 	BatchWorker     mq.BatchWorker
-	HealthHandler   *health.HealthHandler
 }
 
 func NewApp(ctx context.Context, root Root) (*ApplicationContext, error) {
 	log.Initialize(root.Log)
-	mongoDb, er1 := mongo.SetupMongo(ctx, root.Mongo)
+	db, er1 := mongo.SetupMongo(ctx, root.Mongo)
 	if er1 != nil {
 		log.Error(ctx, "Cannot connect to MongoDB. Error: "+er1.Error())
 		return nil, er1
@@ -42,16 +42,16 @@ func NewApp(ctx context.Context, root Root) (*ApplicationContext, error) {
 	}
 
 	userType := reflect.TypeOf(User{})
-	writer := mongo.NewBatchInserter(mongoDb, "users")
+	writer := mongo.NewBatchInserter(db, "users")
 	batchHandler := mq.NewBatchHandler(userType, writer.Write, logError, logInfo)
 
-	mongoChecker := mongo.NewHealthChecker(mongoDb)
+	mongoChecker := mongo.NewHealthChecker(db)
 	consumerChecker := kafka.NewKafkaHealthChecker(root.KafkaConsumer.Brokers, "kafka_consumer")
 	var checkers []health.HealthChecker
 	var batchWorker mq.BatchWorker
 
 	if root.KafkaProducer != nil {
-		producer, er3 := kafka.NewProducerByConfig(*root.KafkaProducer, true)
+		producer, er3 := kafka.NewProducerByConfig(*root.KafkaProducer)
 		if er3 != nil {
 			log.Error(ctx, "Cannot new a new producer. Error: "+er3.Error())
 			return nil, er3
@@ -69,10 +69,10 @@ func NewApp(ctx context.Context, root Root) (*ApplicationContext, error) {
 
 	handler := health.NewHealthHandler(checkers)
 	return &ApplicationContext{
+		HealthHandler:   handler,
 		Consumer:        consumer,
 		ConsumerHandler: consumerHandler,
 		BatchWorker:     batchWorker,
-		HealthHandler:   handler,
 	}, nil
 }
 
