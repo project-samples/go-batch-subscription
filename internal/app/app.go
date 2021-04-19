@@ -16,7 +16,7 @@ import (
 
 type ApplicationContext struct {
 	HealthHandler   *health.HealthHandler
-	Consumer        mq.Consumer
+	Consume         func(ctx context.Context, handle func(context.Context, *mq.Message, error) error)
 	ConsumerHandler mq.ConsumerHandler
 	BatchWorker     mq.BatchWorker
 }
@@ -35,7 +35,7 @@ func NewApp(ctx context.Context, root Root) (*ApplicationContext, error) {
 		logInfo = log.InfoMsg
 	}
 
-	consumer, er2 := kafka.NewConsumerByConfig(root.KafkaConsumer, true)
+	consumer, er2 := kafka.NewReaderByConfig(root.KafkaReader, true)
 	if er2 != nil {
 		log.Error(ctx, "Cannot create a new consumer. Error: "+er2.Error())
 		return nil, er2
@@ -46,19 +46,19 @@ func NewApp(ctx context.Context, root Root) (*ApplicationContext, error) {
 	batchHandler := mq.NewBatchHandler(userType, writer.Write, logError, logInfo)
 
 	mongoChecker := mongo.NewHealthChecker(db)
-	consumerChecker := kafka.NewKafkaHealthChecker(root.KafkaConsumer.Brokers, "kafka_consumer")
+	consumerChecker := kafka.NewKafkaHealthChecker(root.KafkaReader.Brokers, "kafka_reader")
 	var checkers []health.HealthChecker
 	var batchWorker mq.BatchWorker
 
-	if root.KafkaProducer != nil {
-		producer, er3 := kafka.NewProducerByConfig(*root.KafkaProducer)
+	if root.KafkaWriter != nil {
+		producer, er3 := kafka.NewWriterByConfig(*root.KafkaWriter)
 		if er3 != nil {
 			log.Error(ctx, "Cannot new a new producer. Error: "+er3.Error())
 			return nil, er3
 		}
-		retryService := mq.NewMqRetryService(producer.Produce, logError, logInfo)
+		retryService := mq.NewMqRetryService(producer.Write, logError, logInfo)
 		batchWorker = mq.NewDefaultBatchWorker(root.BatchWorkerConfig, batchHandler.Handle, retryService.Retry, logError, logInfo)
-		producerChecker := kafka.NewKafkaHealthChecker(root.KafkaProducer.Brokers, "kafka_producer")
+		producerChecker := kafka.NewKafkaHealthChecker(root.KafkaWriter.Brokers, "kafka_writer")
 		checkers = []health.HealthChecker{mongoChecker, consumerChecker, producerChecker}
 	} else {
 		batchWorker = mq.NewDefaultBatchWorker(root.BatchWorkerConfig, batchHandler.Handle, nil, logError, logInfo)
@@ -70,7 +70,7 @@ func NewApp(ctx context.Context, root Root) (*ApplicationContext, error) {
 	handler := health.NewHealthHandler(checkers)
 	return &ApplicationContext{
 		HealthHandler:   handler,
-		Consumer:        consumer,
+		Consume:         consumer.Read,
 		ConsumerHandler: consumerHandler,
 		BatchWorker:     batchWorker,
 	}, nil

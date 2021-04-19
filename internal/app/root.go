@@ -9,10 +9,10 @@ import (
 )
 
 type Root struct {
-	Server            health.ServerConfig   `mapstructure:"server"`
-	Log               log.Config            `mapstructure:"log"`
-	Mongo             mongo.MongoConfig     `mapstructure:"mongo"`
-	BatchWorkerConfig mq.BatchWorkerConfig  `mapstructure:"batch_worker"`
-	KafkaConsumer     kafka.ConsumerConfig  `mapstructure:"kafka_consumer"`
-	KafkaProducer     *kafka.ProducerConfig `mapstructure:"kafka_producer"`
+	Server            health.ServerConfig  `mapstructure:"server"`
+	Log               log.Config           `mapstructure:"log"`
+	Mongo             mongo.MongoConfig    `mapstructure:"mongo"`
+	BatchWorkerConfig mq.BatchWorkerConfig `mapstructure:"batch_worker"`
+	KafkaReader       kafka.ReaderConfig   `mapstructure:"kafka_reader"`
+	KafkaWriter       *kafka.WriterConfig  `mapstructure:"kafka_writer"`
 }

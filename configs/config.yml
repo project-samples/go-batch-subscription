@@ -17,7 +17,7 @@ batch_worker:
   timeout: 5000
   limit_retry: 3
 
-kafka_consumer:
+kafka_reader:
   brokers: tricycle-01.srvs.cloudkafka.com:9094
   client:
     username: ah1t9hk0
@@ -25,7 +25,7 @@ kafka_consumer:
   group_id: my-group
   topic: ah1t9hk0-default
 
-kafka_producer:
+kafka_writer:
   brokers:
     - tricycle-01.srvs.cloudkafka.com:9094
     - tricycle-02.srvs.cloudkafka.com:9094
