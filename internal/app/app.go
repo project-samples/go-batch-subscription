@@ -7,8 +7,8 @@ import (
 	"github.com/common-go/health"
 	"github.com/common-go/kafka"
 	"github.com/common-go/log"
-	"github.com/common-go/mongo"
 	"github.com/common-go/mq"
+	s "github.com/common-go/sql"
 	v "github.com/common-go/validator"
 	"github.com/go-playground/validator/v10"
 	"github.com/sirupsen/logrus"
@@ -23,9 +23,9 @@ type ApplicationContext struct {
 
 func NewApp(ctx context.Context, root Root) (*ApplicationContext, error) {
 	log.Initialize(root.Log)
-	db, er1 := mongo.SetupMongo(ctx, root.Mongo)
+	db, er1 := s.Open(root.Mysql)
 	if er1 != nil {
-		log.Error(ctx, "Cannot connect to MongoDB. Error: "+er1.Error())
+		log.Error(ctx, "Cannot connect to mysql. Error: "+er1.Error())
 		return nil, er1
 	}
 
@@ -42,10 +42,10 @@ func NewApp(ctx context.Context, root Root) (*ApplicationContext, error) {
 	}
 
 	userType := reflect.TypeOf(User{})
-	writer := mongo.NewBatchInserter(db, "users")
+	writer := s.NewBatchInserter(db, "users")
 	batchHandler := mq.NewBatchHandler(userType, writer.Write, logError, logInfo)
 
-	mongoChecker := mongo.NewHealthChecker(db)
+	mysqlChecker := s.NewHealthChecker(db)
 	consumerChecker := kafka.NewKafkaHealthChecker(root.KafkaReader.Brokers, "kafka_reader")
 	var checkers []health.HealthChecker
 	var batchWorker mq.BatchWorker
@@ -59,10 +59,10 @@ func NewApp(ctx context.Context, root Root) (*ApplicationContext, error) {
 		retryService := mq.NewMqRetryService(producer.Write, logError, logInfo)
 		batchWorker = mq.NewDefaultBatchWorker(root.BatchWorkerConfig, batchHandler.Handle, retryService.Retry, logError, logInfo)
 		producerChecker := kafka.NewKafkaHealthChecker(root.KafkaWriter.Brokers, "kafka_writer")
-		checkers = []health.HealthChecker{mongoChecker, consumerChecker, producerChecker}
+		checkers = []health.HealthChecker{mysqlChecker, consumerChecker, producerChecker}
 	} else {
 		batchWorker = mq.NewDefaultBatchWorker(root.BatchWorkerConfig, batchHandler.Handle, nil, logError, logInfo)
-		checkers = []health.HealthChecker{mongoChecker, consumerChecker}
+		checkers = []health.HealthChecker{mysqlChecker, consumerChecker}
 	}
 	validator := mq.NewValidator(userType, NewUserValidator().Validate, logError)
 	consumerHandler := mq.NewBatchConsumerHandler(batchWorker.Consume, validator.Validate, logError, logInfo)
