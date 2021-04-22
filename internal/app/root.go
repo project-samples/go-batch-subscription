@@ -2,10 +2,10 @@ package app
 
 import (
 	"github.com/common-go/health"
-	"github.com/common-go/kafka"
 	"github.com/common-go/log"
 	"github.com/common-go/mongo"
 	"github.com/common-go/mq"
+	"github.com/common-go/rabbitmq"
 )
 
 type Root struct {
@@ -13,6 +13,6 @@ type Root struct {
 	Log               log.Config            `mapstructure:"log"`
 	Mongo             mongo.MongoConfig     `mapstructure:"mongo"`
 	BatchWorkerConfig mq.BatchWorkerConfig  `mapstructure:"batch_worker"`
-	KafkaConsumer     kafka.ConsumerConfig  `mapstructure:"kafka_consumer"`
-	KafkaProducer     *kafka.ProducerConfig `mapstructure:"kafka_producer"`
+	RabbitConsumer    rabbitmq.ConsumerConfig  `mapstructure:"rabbitmq_consumer"`
+	RabbitProducer    *rabbitmq.ProducerConfig `mapstructure:"rabbitmq_producer"`
 }
