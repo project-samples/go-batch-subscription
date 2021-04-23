@@ -23,5 +23,5 @@ func main() {
 
 	go health.Serve(conf.Server, app.HealthHandler)
 	app.BatchWorker.Run(ctx)
-	app.Consume(ctx, app.ConsumerHandler.Handle)
+	app.Consumer.Consume(ctx, app.ConsumerHandler.Handle)
 }

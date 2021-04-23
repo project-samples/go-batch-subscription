@@ -6,10 +6,3 @@
     {"id": "01", "username": "user01", "active": false, "locked": false, "dateOfBirth": "2009-12-31T23:59:59.999+07:00", "phone": ""}
 ]
 
-
-[
-    {"id": "012", "username": "user012", "active": true, "locked": false, "dateOfBirth": "2009-12-31T23:59:59.999+07:00", "email": "test3@gmail.com", "url": "http://test.com", "phone": "0987654321"},
-    {"id": "013", "username": "user013", "active": false, "locked": true, "dateOfBirth": "2009-12-31T23:59:59.999+07:00", "email": "test4@gmail.com", "url": "http://test.com", "phone": "0987654321"},
-    {"id": "014", "username": "user014", "active": false, "locked": false, "dateOfBirth": "2009-12-31T23:59:59.999+07:00", "email": "tes5t@gmail.com", "url": "http://test.com", "phone": "0987654321"},
-    {"id": "015", "username": "user015", "active": true, "locked": true, "dateOfBirth": "2009-12-31T23:59:59.999+07:00", "email": "test6@gmail.com", "url": "http://test.com", "phone": "0987654321"}
-]

@@ -2,13 +2,14 @@ package app
 
 import (
 	"context"
+	"github.com/common-go/amq"
+	"github.com/common-go/mongo"
+	"github.com/go-stomp/stomp"
 	"reflect"
 
 	"github.com/common-go/health"
-	"github.com/common-go/kafka"
 	"github.com/common-go/log"
 	"github.com/common-go/mq"
-	s "github.com/common-go/sql"
 	v "github.com/common-go/validator"
 	"github.com/go-playground/validator/v10"
 	"github.com/sirupsen/logrus"
@@ -16,16 +17,16 @@ import (
 
 type ApplicationContext struct {
 	HealthHandler   *health.HealthHandler
-	Consume         func(ctx context.Context, handle func(context.Context, *mq.Message, error) error)
+	Consumer        mq.Consumer
 	ConsumerHandler mq.ConsumerHandler
 	BatchWorker     mq.BatchWorker
 }
 
 func NewApp(ctx context.Context, root Root) (*ApplicationContext, error) {
 	log.Initialize(root.Log)
-	db, er1 := s.Open(root.Mysql)
+	mongoDb, er1 := mongo.SetupMongo(ctx, root.Mongo)
 	if er1 != nil {
-		log.Error(ctx, "Cannot connect to mysql. Error: "+er1.Error())
+		log.Error(ctx, "Cannot connect to MongoDB: Error: "+er1.Error())
 		return nil, er1
 	}
 
@@ -35,42 +36,29 @@ func NewApp(ctx context.Context, root Root) (*ApplicationContext, error) {
 		logInfo = log.InfoMsg
 	}
 
-	consumer, er2 := kafka.NewReaderByConfig(root.KafkaReader, true)
-	if er2 != nil {
-		log.Error(ctx, "Cannot create a new consumer. Error: "+er2.Error())
-		return nil, er2
+	consumer, err := amq.NewConsumerByConfig(root.AmqConfig, stomp.AckAuto, true)
+	if err != nil {
+		return nil, err
 	}
 
 	userType := reflect.TypeOf(User{})
-	writer := s.NewBatchInserter(db, "users")
+	writer := mongo.NewBatchInserter(mongoDb, "users")
 	batchHandler := mq.NewBatchHandler(userType, writer.Write, logError, logInfo)
 
-	mysqlChecker := s.NewHealthChecker(db)
-	consumerChecker := kafka.NewKafkaHealthChecker(root.KafkaReader.Brokers, "kafka_reader")
+	mongoChecker := mongo.NewHealthChecker(mongoDb)
+	consumerChecker := amq.NewAMQHealthChecker(consumer.Conn)
 	var checkers []health.HealthChecker
 	var batchWorker mq.BatchWorker
+	batchWorker = mq.NewDefaultBatchWorker(root.BatchWorkerConfig, batchHandler.Handle, nil, logError, logInfo)
+	checkers = []health.HealthChecker{mongoChecker, consumerChecker}
 
-	if root.KafkaWriter != nil {
-		producer, er3 := kafka.NewWriterByConfig(*root.KafkaWriter)
-		if er3 != nil {
-			log.Error(ctx, "Cannot new a new producer. Error: "+er3.Error())
-			return nil, er3
-		}
-		retryService := mq.NewMqRetryService(producer.Write, logError, logInfo)
-		batchWorker = mq.NewDefaultBatchWorker(root.BatchWorkerConfig, batchHandler.Handle, retryService.Retry, logError, logInfo)
-		producerChecker := kafka.NewKafkaHealthChecker(root.KafkaWriter.Brokers, "kafka_writer")
-		checkers = []health.HealthChecker{mysqlChecker, consumerChecker, producerChecker}
-	} else {
-		batchWorker = mq.NewDefaultBatchWorker(root.BatchWorkerConfig, batchHandler.Handle, nil, logError, logInfo)
-		checkers = []health.HealthChecker{mysqlChecker, consumerChecker}
-	}
 	validator := mq.NewValidator(userType, NewUserValidator().Validate, logError)
 	consumerHandler := mq.NewBatchConsumerHandler(batchWorker.Consume, validator.Validate, logError, logInfo)
 
 	handler := health.NewHealthHandler(checkers)
 	return &ApplicationContext{
 		HealthHandler:   handler,
-		Consume:         consumer.Read,
+		Consumer:        consumer,
 		ConsumerHandler: consumerHandler,
 		BatchWorker:     batchWorker,
 	}, nil

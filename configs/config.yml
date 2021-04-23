@@ -1,5 +1,5 @@
 server:
-  name: go-batch-consumer
+  name: go-consumer
   port: 8080
 
 log:
@@ -12,29 +12,15 @@ mongo:
   uri: mongodb://localhost:27017
   database: masterdata
 
-mysql:
-  driver: mysql
-  data_source_name: root:12345678xX@/go_consumer?charset=utf8&parseTime=True&loc=Local
 
 batch_worker:
-  batch_size: 100
+  batch_size: 5
   timeout: 5000
   limit_retry: 3
 
-kafka_reader:
-  brokers: tricycle-01.srvs.cloudkafka.com:9094
-  client:
-    username: ah1t9hk0
-    password: QvMB75cxJ48KYRnGfwXcRNxzALyAeb7-
-  group_id: my-group
-  topic: ah1t9hk0-tkan
-
-kafka_writer:
-  brokers:
-    - tricycle-01.srvs.cloudkafka.com:9094
-    - tricycle-02.srvs.cloudkafka.com:9094
-    - tricycle-03.srvs.cloudkafka.com:9094
-  client:
-    username: ah1t9hk0
-    password: QvMB75cxJ48KYRnGfwXcRNxzALyAeb7-
-  topic: ah1t9hk0-tkan
+amq_config:
+  addr: localhost:61613
+  username: admin
+  password: admin
+  destination_name: test
+  subscription_name: test
