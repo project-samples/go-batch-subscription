@@ -1,5 +1,5 @@
 server:
-  name: go-batch-consumer
+  name: go-subscription
   port: 8080
 
 log:
@@ -10,14 +10,14 @@ log:
 
 mongo:
   uri: mongodb://localhost:27017
-  database: master_data
+  database: masterdata
 
 batch_worker:
   batch_size: 100
   timeout: 5000
   limit_retry: 3
 
-kafka_consumer:
+reader:
   brokers: tricycle-01.srvs.cloudkafka.com:9094
   client:
     username: ah1t9hk0
@@ -25,7 +25,7 @@ kafka_consumer:
   group_id: my-group
   topic: ah1t9hk0-default
 
-kafka_producer:
+writer:
   brokers:
     - tricycle-01.srvs.cloudkafka.com:9094
     - tricycle-02.srvs.cloudkafka.com:9094

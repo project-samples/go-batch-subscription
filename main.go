@@ -2,8 +2,8 @@ package main
 
 import (
 	"context"
-	"github.com/common-go/config"
-	"github.com/common-go/health"
+	"github.com/core-go/config"
+	"github.com/core-go/health/server"
 
 	"go-service/internal/app"
 )
@@ -21,7 +21,7 @@ func main() {
 		panic(er2)
 	}
 
-	go health.Serve(conf.Server, app.HealthHandler)
+	go server.Serve(conf.Server, app.HealthHandler.Check)
 	app.BatchWorker.Run(ctx)
-	app.Consumer.Consume(ctx, app.ConsumerHandler.Handle)
+	app.Receive(ctx, app.Subscription.Receive)
 }

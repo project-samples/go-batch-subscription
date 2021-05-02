@@ -2,28 +2,28 @@ package app
 
 import (
 	"context"
+	"github.com/core-go/health/mongo"
 	"reflect"
 
-	"github.com/common-go/health"
-	"github.com/common-go/kafka"
-	"github.com/common-go/log"
-	"github.com/common-go/mongo"
-	"github.com/common-go/mq"
-	v "github.com/common-go/validator"
+	"github.com/core-go/health"
+	mgo "github.com/core-go/mongo"
+	"github.com/core-go/mq"
+	"github.com/core-go/mq/kafka"
+	"github.com/core-go/mq/log"
+	v "github.com/core-go/mq/validator"
 	"github.com/go-playground/validator/v10"
-	"github.com/sirupsen/logrus"
 )
 
 type ApplicationContext struct {
-	Consumer        mq.Consumer
-	ConsumerHandler mq.ConsumerHandler
-	BatchWorker     mq.BatchWorker
-	HealthHandler   *health.HealthHandler
+	HealthHandler *health.HealthHandler
+	BatchWorker   mq.BatchWorker
+	Receive       func(ctx context.Context, handle func(context.Context, *mq.Message, error) error)
+	Subscription  *mq.Subscription
 }
 
 func NewApp(ctx context.Context, root Root) (*ApplicationContext, error) {
 	log.Initialize(root.Log)
-	mongoDb, er1 := mongo.SetupMongo(ctx, root.Mongo)
+	db, er1 := mgo.SetupMongo(ctx, root.Mongo)
 	if er1 != nil {
 		log.Error(ctx, "Cannot connect to MongoDB. Error: "+er1.Error())
 		return nil, er1
@@ -31,48 +31,48 @@ func NewApp(ctx context.Context, root Root) (*ApplicationContext, error) {
 
 	logError := log.ErrorMsg
 	var logInfo func(context.Context, string)
-	if logrus.IsLevelEnabled(logrus.InfoLevel) {
+	if log.IsInfoEnable() {
 		logInfo = log.InfoMsg
 	}
 
-	consumer, er2 := kafka.NewConsumerByConfig(root.KafkaConsumer, true)
+	receiver, er2 := kafka.NewReaderByConfig(root.Reader, true)
 	if er2 != nil {
-		log.Error(ctx, "Cannot create a new consumer. Error: "+er2.Error())
+		log.Error(ctx, "Cannot create a new receiver. Error: "+er2.Error())
 		return nil, er2
 	}
 
 	userType := reflect.TypeOf(User{})
-	writer := mongo.NewBatchInserter(mongoDb, "users")
-	batchHandler := mq.NewBatchHandler(userType, writer.Write, logError, logInfo)
+	batchWriter := mgo.NewBatchInserter(db, "users")
+	batchHandler := mq.NewBatchHandler(userType, batchWriter.Write, logError, logInfo)
 
-	mongoChecker := mongo.NewHealthChecker(mongoDb)
-	consumerChecker := kafka.NewKafkaHealthChecker(root.KafkaConsumer.Brokers, "kafka_consumer")
-	var checkers []health.HealthChecker
+	mongoChecker := mongo.NewHealthChecker(db)
+	receiverChecker := kafka.NewKafkaHealthChecker(root.Reader.Brokers, "kafka_reader")
+	var healthHandler *health.HealthHandler
 	var batchWorker mq.BatchWorker
 
-	if root.KafkaProducer != nil {
-		producer, er3 := kafka.NewProducerByConfig(*root.KafkaProducer, true)
+	if root.Writer != nil {
+		sender, er3 := kafka.NewWriterByConfig(*root.Writer)
 		if er3 != nil {
-			log.Error(ctx, "Cannot new a new producer. Error: "+er3.Error())
+			log.Error(ctx, "Cannot new a new sender. Error: "+er3.Error())
 			return nil, er3
 		}
-		retryService := mq.NewMqRetryService(producer.Produce, logError, logInfo)
+		retryService := mq.NewRetryService(sender.Write, logError, logInfo)
 		batchWorker = mq.NewDefaultBatchWorker(root.BatchWorkerConfig, batchHandler.Handle, retryService.Retry, logError, logInfo)
-		producerChecker := kafka.NewKafkaHealthChecker(root.KafkaProducer.Brokers, "kafka_producer")
-		checkers = []health.HealthChecker{mongoChecker, consumerChecker, producerChecker}
+		senderChecker := kafka.NewKafkaHealthChecker(root.Writer.Brokers, "kafka_writer")
+		healthHandler = health.NewHealthHandler(mongoChecker, receiverChecker, senderChecker)
 	} else {
 		batchWorker = mq.NewDefaultBatchWorker(root.BatchWorkerConfig, batchHandler.Handle, nil, logError, logInfo)
-		checkers = []health.HealthChecker{mongoChecker, consumerChecker}
+		healthHandler = health.NewHealthHandler(mongoChecker, receiverChecker)
 	}
-	validator := mq.NewValidator(userType, NewUserValidator().Validate, logError)
-	consumerHandler := mq.NewBatchConsumerHandler(batchWorker.Consume, validator.Validate, logError, logInfo)
+	checker := v.NewErrorChecker(NewUserValidator().Validate)
+	validator := mq.NewValidator(userType, checker.Check)
+	subscription := mq.NewSubscription(batchWorker.Handle, validator.Validate, logError, logInfo)
 
-	handler := health.NewHealthHandler(checkers)
 	return &ApplicationContext{
-		Consumer:        consumer,
-		ConsumerHandler: consumerHandler,
-		BatchWorker:     batchWorker,
-		HealthHandler:   handler,
+		HealthHandler: healthHandler,
+		BatchWorker:   batchWorker,
+		Receive:       receiver.Read,
+		Subscription:  subscription,
 	}, nil
 }
 
