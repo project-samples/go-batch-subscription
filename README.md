@@ -1,1 +1,1 @@
-# go-batch-consumer
+# go-batch-subscription
