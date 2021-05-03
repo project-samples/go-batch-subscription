@@ -2,15 +2,14 @@ package app
 
 import (
 	"context"
-	"github.com/core-go/health/mongo"
 	"reflect"
 
 	"github.com/core-go/health"
 	mgo "github.com/core-go/mongo"
 	"github.com/core-go/mq"
 	"github.com/core-go/mq/kafka"
-	"github.com/core-go/mq/log"
 	v "github.com/core-go/mq/validator"
+	"github.com/core-go/mq/zap"
 	"github.com/go-playground/validator/v10"
 )
 
@@ -45,7 +44,7 @@ func NewApp(ctx context.Context, root Root) (*ApplicationContext, error) {
 	batchWriter := mgo.NewBatchInserter(db, "users")
 	batchHandler := mq.NewBatchHandler(userType, batchWriter.Write, logError, logInfo)
 
-	mongoChecker := mongo.NewHealthChecker(db)
+	mongoChecker := mgo.NewHealthChecker(db)
 	receiverChecker := kafka.NewKafkaHealthChecker(root.Reader.Brokers, "kafka_reader")
 	var healthHandler *health.HealthHandler
 	var batchWorker mq.BatchWorker
