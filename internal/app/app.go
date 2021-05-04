@@ -2,14 +2,13 @@ package app
 
 import (
 	"context"
-	"github.com/core-go/health/mongo"
 	"reflect"
 
 	"github.com/core-go/health"
 	mgo "github.com/core-go/mongo"
 	"github.com/core-go/mq"
-	"github.com/core-go/mq/kafka"
 	"github.com/core-go/mq/log"
+	"github.com/core-go/mq/sqs"
 	v "github.com/core-go/mq/validator"
 	"github.com/go-playground/validator/v10"
 )
@@ -23,10 +22,10 @@ type ApplicationContext struct {
 
 func NewApp(ctx context.Context, root Root) (*ApplicationContext, error) {
 	log.Initialize(root.Log)
-	db, er1 := mgo.SetupMongo(ctx, root.Mongo)
-	if er1 != nil {
-		log.Error(ctx, "Cannot connect to MongoDB. Error: "+er1.Error())
-		return nil, er1
+	db, er0 := mgo.SetupMongo(ctx, root.Mongo)
+	if er0 != nil {
+		log.Error(ctx, "Cannot connect to MongoDB. Error: "+er0.Error())
+		return nil, er0
 	}
 
 	logError := log.ErrorMsg
@@ -35,30 +34,35 @@ func NewApp(ctx context.Context, root Root) (*ApplicationContext, error) {
 		logInfo = log.InfoMsg
 	}
 
-	receiver, er2 := kafka.NewReaderByConfig(root.Reader, true)
+	receiverClient, er2 := sqs.Connect(root.Receiver)
 	if er2 != nil {
 		log.Error(ctx, "Cannot create a new receiver. Error: "+er2.Error())
 		return nil, er2
 	}
+	receiver := sqs.NewReceiver(receiverClient, root.Receiver.QueueName, true, 20, 1)
 
 	userType := reflect.TypeOf(User{})
 	batchWriter := mgo.NewBatchInserter(db, "users")
 	batchHandler := mq.NewBatchHandler(userType, batchWriter.Write, logError, logInfo)
 
-	mongoChecker := mongo.NewHealthChecker(db)
-	receiverChecker := kafka.NewKafkaHealthChecker(root.Reader.Brokers, "kafka_reader")
+	mongoChecker := mgo.NewHealthChecker(db)
+	receiverChecker := sqs.NewHealthChecker(receiverClient, root.Receiver.QueueName, "sqs_receiver")
 	var healthHandler *health.HealthHandler
 	var batchWorker mq.BatchWorker
 
-	if root.Writer != nil {
-		sender, er3 := kafka.NewWriterByConfig(*root.Writer)
+	if root.Sender != nil {
+		senderClient, er3 := sqs.Connect(*root.Sender)
 		if er3 != nil {
 			log.Error(ctx, "Cannot new a new sender. Error: "+er3.Error())
 			return nil, er3
 		}
-		retryService := mq.NewRetryService(sender.Write, logError, logInfo)
+		var delaySecond int64
+		delaySecond = 1
+		sender := sqs.NewSender(senderClient, root.Sender.QueueName, &delaySecond)
+
+		retryService := mq.NewRetryService(sender.Send, logError, logInfo)
 		batchWorker = mq.NewDefaultBatchWorker(root.BatchWorkerConfig, batchHandler.Handle, retryService.Retry, logError, logInfo)
-		senderChecker := kafka.NewKafkaHealthChecker(root.Writer.Brokers, "kafka_writer")
+		senderChecker := sqs.NewHealthChecker(senderClient, root.Sender.QueueName, "sqs_sender")
 		healthHandler = health.NewHealthHandler(mongoChecker, receiverChecker, senderChecker)
 	} else {
 		batchWorker = mq.NewDefaultBatchWorker(root.BatchWorkerConfig, batchHandler.Handle, nil, logError, logInfo)
@@ -71,7 +75,7 @@ func NewApp(ctx context.Context, root Root) (*ApplicationContext, error) {
 	return &ApplicationContext{
 		HealthHandler: healthHandler,
 		BatchWorker:   batchWorker,
-		Receive:       receiver.Read,
+		Receive:       receiver.Receive,
 		Subscription:  subscription,
 	}, nil
 }

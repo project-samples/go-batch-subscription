@@ -13,24 +13,18 @@ mongo:
   database: masterdata
 
 batch_worker:
-  batch_size: 100
+  batch_size: 5
   timeout: 5000
   limit_retry: 3
 
-reader:
-  brokers: tricycle-01.srvs.cloudkafka.com:9094
-  client:
-    username: ah1t9hk0
-    password: QvMB75cxJ48KYRnGfwXcRNxzALyAeb7-
-  group_id: my-group
-  topic: ah1t9hk0-default
+receiver:
+  region: abc
+  access_key_id: abc
+  secret_access_key: abc
+  queue_name: abc
 
-writer:
-  brokers:
-    - tricycle-01.srvs.cloudkafka.com:9094
-    - tricycle-02.srvs.cloudkafka.com:9094
-    - tricycle-03.srvs.cloudkafka.com:9094
-  client:
-    username: ah1t9hk0
-    password: QvMB75cxJ48KYRnGfwXcRNxzALyAeb7-
-  topic: ah1t9hk0-default
+sender:
+  region: abc
+  access_key_id: abc
+  secret_access_key: abc
+  queue_name: abc
