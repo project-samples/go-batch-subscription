@@ -34,6 +34,8 @@ github.com/cespare/xxhash v1.1.0/go.mod h1:XrSqR1VqqWfGrhpAt58auRo0WTKS1nRRg3ghf
 github.com/client9/misspell v0.3.4/go.mod h1:qj6jICC3Q7zFZvVWo7KLAzC3yx5G7kyvSDkc90ppPyw=
 github.com/core-go/config v0.1.0 h1:PT9t/UrhNFo5tB0s45Ed99R6Lx3ibRwA2SdjNjbRCA0=
 github.com/core-go/config v0.1.0/go.mod h1:Pqxosu8ryByLKWyV6tDiwY+JAJc+YSlFy6MzQRFDO+g=
+github.com/core-go/dynamodb v0.0.0 h1:2WLd35AXiJtNQD1CqoZPJ/LbS9dyH3q2ubTq3KeLW3c=
+github.com/core-go/dynamodb v0.0.0/go.mod h1:62kLJlpxhpkq5471ZXqba3OOiX9ikMC2V4qPlORN2eQ=
 github.com/core-go/health v0.4.4 h1:MXw+f3r5EgxysFQQtglzfO0jh4jHinr2bBqcXxUrHcU=
 github.com/core-go/health v0.4.4/go.mod h1:7J9YQqCPSZW5+5BLVtZPQ/FULyk+LHZgSTnWFdL+oP0=
 github.com/core-go/mongo v0.2.1 h1:z6oJ+zCMokeXO5UCIco8t0veEDqAvuocmaqWd7WAALw=
