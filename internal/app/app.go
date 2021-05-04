@@ -3,12 +3,12 @@ package app
 import (
 	"context"
 	"github.com/core-go/health/mongo"
+	"github.com/core-go/mq/rabbitmq"
 	"reflect"
 
 	"github.com/core-go/health"
 	mgo "github.com/core-go/mongo"
 	"github.com/core-go/mq"
-	"github.com/core-go/mq/kafka"
 	"github.com/core-go/mq/log"
 	v "github.com/core-go/mq/validator"
 	"github.com/go-playground/validator/v10"
@@ -35,7 +35,7 @@ func NewApp(ctx context.Context, root Root) (*ApplicationContext, error) {
 		logInfo = log.InfoMsg
 	}
 
-	receiver, er2 := kafka.NewReaderByConfig(root.Reader, true)
+	receiver, er2 := rabbitmq.NewConsumerByConfig(root.Consumer, true, true)
 	if er2 != nil {
 		log.Error(ctx, "Cannot create a new receiver. Error: "+er2.Error())
 		return nil, er2
@@ -46,19 +46,19 @@ func NewApp(ctx context.Context, root Root) (*ApplicationContext, error) {
 	batchHandler := mq.NewBatchHandler(userType, batchWriter.Write, logError, logInfo)
 
 	mongoChecker := mongo.NewHealthChecker(db)
-	receiverChecker := kafka.NewKafkaHealthChecker(root.Reader.Brokers, "kafka_reader")
+	receiverChecker := rabbitmq.NewHealthChecker(root.Consumer.Url, "rabbitmq_consumer")
 	var healthHandler *health.HealthHandler
 	var batchWorker mq.BatchWorker
 
-	if root.Writer != nil {
-		sender, er3 := kafka.NewWriterByConfig(*root.Writer)
+	if root.Publisher != nil {
+		sender, er3 := rabbitmq.NewPublisherByConfig(*root.Publisher)
 		if er3 != nil {
 			log.Error(ctx, "Cannot new a new sender. Error: "+er3.Error())
 			return nil, er3
 		}
-		retryService := mq.NewRetryService(sender.Write, logError, logInfo)
+		retryService := mq.NewRetryService(sender.Publish, logError, logInfo)
 		batchWorker = mq.NewDefaultBatchWorker(root.BatchWorkerConfig, batchHandler.Handle, retryService.Retry, logError, logInfo)
-		senderChecker := kafka.NewKafkaHealthChecker(root.Writer.Brokers, "kafka_writer")
+		senderChecker := rabbitmq.NewHealthChecker(root.Publisher.Url, "rabbitmq_publisher")
 		healthHandler = health.NewHealthHandler(mongoChecker, receiverChecker, senderChecker)
 	} else {
 		batchWorker = mq.NewDefaultBatchWorker(root.BatchWorkerConfig, batchHandler.Handle, nil, logError, logInfo)
@@ -71,7 +71,7 @@ func NewApp(ctx context.Context, root Root) (*ApplicationContext, error) {
 	return &ApplicationContext{
 		HealthHandler: healthHandler,
 		BatchWorker:   batchWorker,
-		Receive:       receiver.Read,
+		Receive:       receiver.Consume,
 		Subscription:  subscription,
 	}, nil
 }
