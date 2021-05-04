@@ -2,16 +2,16 @@ package app
 
 import (
 	"context"
-	"github.com/core-go/health/mongo"
 	"reflect"
 
 	"github.com/core-go/health"
 	mgo "github.com/core-go/mongo"
 	"github.com/core-go/mq"
-	"github.com/core-go/mq/kafka"
+	"github.com/core-go/mq/amq"
 	"github.com/core-go/mq/log"
 	v "github.com/core-go/mq/validator"
 	"github.com/go-playground/validator/v10"
+	"github.com/go-stomp/stomp"
 )
 
 type ApplicationContext struct {
@@ -35,7 +35,7 @@ func NewApp(ctx context.Context, root Root) (*ApplicationContext, error) {
 		logInfo = log.InfoMsg
 	}
 
-	receiver, er2 := kafka.NewReaderByConfig(root.Reader, true)
+	receiver, er2 := amq.NewSubscriberByConfig(root.Amq, stomp.AckAuto, true)
 	if er2 != nil {
 		log.Error(ctx, "Cannot create a new receiver. Error: "+er2.Error())
 		return nil, er2
@@ -45,33 +45,19 @@ func NewApp(ctx context.Context, root Root) (*ApplicationContext, error) {
 	batchWriter := mgo.NewBatchInserter(db, "users")
 	batchHandler := mq.NewBatchHandler(userType, batchWriter.Write, logError, logInfo)
 
-	mongoChecker := mongo.NewHealthChecker(db)
-	receiverChecker := kafka.NewKafkaHealthChecker(root.Reader.Brokers, "kafka_reader")
-	var healthHandler *health.HealthHandler
-	var batchWorker mq.BatchWorker
-
-	if root.Writer != nil {
-		sender, er3 := kafka.NewWriterByConfig(*root.Writer)
-		if er3 != nil {
-			log.Error(ctx, "Cannot new a new sender. Error: "+er3.Error())
-			return nil, er3
-		}
-		retryService := mq.NewRetryService(sender.Write, logError, logInfo)
-		batchWorker = mq.NewDefaultBatchWorker(root.BatchWorkerConfig, batchHandler.Handle, retryService.Retry, logError, logInfo)
-		senderChecker := kafka.NewKafkaHealthChecker(root.Writer.Brokers, "kafka_writer")
-		healthHandler = health.NewHealthHandler(mongoChecker, receiverChecker, senderChecker)
-	} else {
-		batchWorker = mq.NewDefaultBatchWorker(root.BatchWorkerConfig, batchHandler.Handle, nil, logError, logInfo)
-		healthHandler = health.NewHealthHandler(mongoChecker, receiverChecker)
-	}
+	batchWorker := mq.NewDefaultBatchWorker(root.BatchWorkerConfig, batchHandler.Handle, nil, logError, logInfo)
 	checker := v.NewErrorChecker(NewUserValidator().Validate)
 	validator := mq.NewValidator(userType, checker.Check)
 	subscription := mq.NewSubscription(batchWorker.Handle, validator.Validate, logError, logInfo)
 
+	mongoChecker := mgo.NewHealthChecker(db)
+	receiverChecker := amq.NewHealthChecker(receiver.Conn, "amq_subscriber")
+	healthHandler := health.NewHealthHandler(mongoChecker, receiverChecker)
+
 	return &ApplicationContext{
 		HealthHandler: healthHandler,
 		BatchWorker:   batchWorker,
-		Receive:       receiver.Read,
+		Receive:       receiver.Subscribe,
 		Subscription:  subscription,
 	}, nil
 }

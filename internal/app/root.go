@@ -4,7 +4,7 @@ import (
 	"github.com/core-go/health/server"
 	"github.com/core-go/mongo"
 	"github.com/core-go/mq"
-	"github.com/core-go/mq/kafka"
+	"github.com/core-go/mq/amq"
 	"github.com/core-go/mq/log"
 )
 
@@ -13,6 +13,5 @@ type Root struct {
 	Log               log.Config           `mapstructure:"log"`
 	Mongo             mongo.MongoConfig    `mapstructure:"mongo"`
 	BatchWorkerConfig mq.BatchWorkerConfig `mapstructure:"batch_worker"`
-	Reader            kafka.ReaderConfig   `mapstructure:"reader"`
-	Writer            *kafka.WriterConfig  `mapstructure:"writer"`
+	Amq               amq.Config           `mapstructure:"amq"`
 }
