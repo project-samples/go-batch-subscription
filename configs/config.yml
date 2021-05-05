@@ -8,9 +8,8 @@ log:
     time: "@timestamp"
     msg: message
 
-mongo:
-  uri: mongodb://localhost:27017
-  database: masterdata
+elasticsearch:
+  addresses: http://localhost:9200
 
 batch_worker:
   batch_size: 100
