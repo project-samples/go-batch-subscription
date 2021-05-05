@@ -8,12 +8,12 @@ log:
     time: "@timestamp"
     msg: message
 
-mongo:
-  uri: mongodb://localhost:27017
-  database: masterdata
+sql:
+  data_source_name: root:password@tcp(127.0.0.1:3306)/masterdata?parseTime=true
+  driver: mysql
 
 batch_worker:
-  batch_size: 100
+  batch_size: 10
   timeout: 5000
   limit_retry: 3
 
