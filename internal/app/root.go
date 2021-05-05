@@ -9,12 +9,12 @@ import (
 )
 
 type Root struct {
-	Server     server.ServerConf     `mapstructure:"server"`
-	Log        log.Config            `mapstructure:"log"`
-	Mongo      mongo.MongoConfig     `mapstructure:"mongo"`
-	Retry      *mq.RetryConfig       `mapstructure:"retry"`
-	Subscriber SubscriberConfig      `mapstructure:"subscriber"`
-	Publisher  *nats.PublisherConfig `mapstructure:"publisher"`
+	Server            server.ServerConf     `mapstructure:"server"`
+	Log               log.Config            `mapstructure:"log"`
+	Mongo             mongo.MongoConfig     `mapstructure:"mongo"`
+	BatchWorkerConfig mq.BatchWorkerConfig  `mapstructure:"batch_worker"`
+	Subscriber        SubscriberConfig      `mapstructure:"subscriber"`
+	Publisher         *nats.PublisherConfig `mapstructure:"publisher"`
 }
 
 type SubscriberConfig struct {

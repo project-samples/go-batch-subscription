@@ -15,15 +15,16 @@ import (
 
 type ApplicationContext struct {
 	HealthHandler *health.HealthHandler
+	BatchWorker   mq.BatchWorker
 	Receive       func(ctx context.Context, handle func(context.Context, *mq.Message, error) error)
-	Handler       *mq.Handler
+	Subscription  *mq.Subscription
 }
 
 func NewApp(ctx context.Context, root Root) (*ApplicationContext, error) {
 	log.Initialize(root.Log)
 	db, er1 := mgo.SetupMongo(ctx, root.Mongo)
 	if er1 != nil {
-		log.Error(ctx, "Cannot connect to MongoDB: Error: "+er1.Error())
+		log.Error(ctx, "Cannot connect to MongoDB. Error: "+er1.Error())
 		return nil, er1
 	}
 
@@ -38,34 +39,39 @@ func NewApp(ctx context.Context, root Root) (*ApplicationContext, error) {
 		log.Error(ctx, "Cannot create a new receiver. Error: "+er2.Error())
 		return nil, er2
 	}
+
 	userType := reflect.TypeOf(User{})
-	writer := mgo.NewInserter(db, "users")
-	checker := v.NewErrorChecker(NewUserValidator().Validate)
-	validator := mq.NewValidator(userType, checker.Check)
+	batchWriter := mgo.NewBatchInserter(db, "users")
+	batchHandler := mq.NewBatchHandler(userType, batchWriter.Write, logError, logInfo)
 
 	mongoChecker := mgo.NewHealthChecker(db)
 	receiverChecker := nats.NewHealthChecker(root.Subscriber.NATS.Connection.Url, "nats_subscriber")
 	var healthHandler *health.HealthHandler
-	var handler *mq.Handler
+	var batchWorker mq.BatchWorker
+
 	if root.Publisher != nil {
 		sender, er3 := nats.NewPublisherByConfig(*root.Publisher)
 		if er3 != nil {
-			log.Error(ctx, "Cannot new a new sender. Error:"+er3.Error())
+			log.Error(ctx, "Cannot new a new sender. Error: "+er3.Error())
 			return nil, er3
 		}
 		retryService := mq.NewRetryService(sender.Publish, logError, logInfo)
-		handler = mq.NewHandlerByConfig(root.Subscriber.Config, userType, writer.Write, retryService.Retry, validator.Validate, nil, logError, logInfo)
+		batchWorker = mq.NewDefaultBatchWorker(root.BatchWorkerConfig, batchHandler.Handle, retryService.Retry, logError, logInfo)
 		senderChecker := nats.NewHealthChecker(root.Publisher.Connection.Url, "nats_publisher")
 		healthHandler = health.NewHealthHandler(mongoChecker, receiverChecker, senderChecker)
 	} else {
+		batchWorker = mq.NewDefaultBatchWorker(root.BatchWorkerConfig, batchHandler.Handle, nil, logError, logInfo)
 		healthHandler = health.NewHealthHandler(mongoChecker, receiverChecker)
-		handler = mq.NewHandlerWithRetryConfig(userType, writer.Write, validator.Validate, root.Retry, true, logError, logInfo)
 	}
+	checker := v.NewErrorChecker(NewUserValidator().Validate)
+	validator := mq.NewValidator(userType, checker.Check)
+	subscription := mq.NewSubscription(batchWorker.Handle, validator.Validate, logError, logInfo)
 
 	return &ApplicationContext{
 		HealthHandler: healthHandler,
+		BatchWorker:   batchWorker,
 		Receive:       receiver.Subscribe,
-		Handler:       handler,
+		Subscription:  subscription,
 	}, nil
 }
 

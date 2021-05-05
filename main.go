@@ -4,7 +4,6 @@ import (
 	"context"
 	"github.com/core-go/config"
 	"github.com/core-go/health/server"
-
 	"go-service/internal/app"
 )
 
@@ -22,5 +21,6 @@ func main() {
 	}
 
 	go server.Serve(conf.Server, app.HealthHandler.Check)
-	app.Receive(ctx, app.Handler.Handle)
+	app.BatchWorker.Run(ctx)
+	app.Receive(ctx, app.Subscription.Receive)
 }

@@ -12,10 +12,11 @@ mongo:
   uri: mongodb://localhost:27017
   database: masterdata
 
-retry:
-  1: 5
-  2: 7
-  3: 9
+batch_worker:
+  batch_size: 100
+  timeout: 5000
+  limit_retry: 3
+
 
 subscriber:
   nats:
