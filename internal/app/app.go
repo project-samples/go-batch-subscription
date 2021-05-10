@@ -2,16 +2,15 @@ package app
 
 import (
 	"context"
-	"github.com/core-go/health/mongo"
 	"reflect"
 
 	"github.com/core-go/health"
-	mgo "github.com/core-go/mongo"
+	"github.com/core-go/mongo"
 	"github.com/core-go/mq"
 	"github.com/core-go/mq/kafka"
 	"github.com/core-go/mq/log"
-	v "github.com/core-go/mq/validator"
-	"github.com/go-playground/validator/v10"
+	"github.com/core-go/mq/validator"
+	val "github.com/go-playground/validator/v10"
 )
 
 type ApplicationContext struct {
@@ -23,7 +22,7 @@ type ApplicationContext struct {
 
 func NewApp(ctx context.Context, root Root) (*ApplicationContext, error) {
 	log.Initialize(root.Log)
-	db, er1 := mgo.SetupMongo(ctx, root.Mongo)
+	db, er1 := mongo.SetupMongo(ctx, root.Mongo)
 	if er1 != nil {
 		log.Error(ctx, "Cannot connect to MongoDB. Error: "+er1.Error())
 		return nil, er1
@@ -42,7 +41,7 @@ func NewApp(ctx context.Context, root Root) (*ApplicationContext, error) {
 	}
 
 	userType := reflect.TypeOf(User{})
-	batchWriter := mgo.NewBatchInserter(db, "users")
+	batchWriter := mongo.NewBatchInserter(db, "user")
 	batchHandler := mq.NewBatchHandler(userType, batchWriter.Write, logError, logInfo)
 
 	mongoChecker := mongo.NewHealthChecker(db)
@@ -64,7 +63,7 @@ func NewApp(ctx context.Context, root Root) (*ApplicationContext, error) {
 		batchWorker = mq.NewDefaultBatchWorker(root.BatchWorkerConfig, batchHandler.Handle, nil, logError, logInfo)
 		healthHandler = health.NewHealthHandler(mongoChecker, receiverChecker)
 	}
-	checker := v.NewErrorChecker(NewUserValidator().Validate)
+	checker := validator.NewErrorChecker(NewUserValidator().Validate)
 	validator := mq.NewValidator(userType, checker.Check)
 	subscription := mq.NewSubscription(batchWorker.Handle, validator.Validate, logError, logInfo)
 
@@ -76,11 +75,11 @@ func NewApp(ctx context.Context, root Root) (*ApplicationContext, error) {
 	}, nil
 }
 
-func NewUserValidator() v.Validator {
-	validator := v.NewDefaultValidator()
-	validator.CustomValidateList = append(validator.CustomValidateList, v.CustomValidate{Fn: CheckActive, Tag: "active"})
-	return validator
+func NewUserValidator() validator.Validator {
+	val := validator.NewDefaultValidator()
+	val.CustomValidateList = append(val.CustomValidateList, validator.CustomValidate{Fn: CheckActive, Tag: "active"})
+	return val
 }
-func CheckActive(fl validator.FieldLevel) bool {
+func CheckActive(fl val.FieldLevel) bool {
 	return fl.Field().Bool()
 }
