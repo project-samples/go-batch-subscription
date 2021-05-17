@@ -8,9 +8,9 @@ import (
 	"github.com/core-go/mq"
 	"github.com/core-go/mq/log"
 	"github.com/core-go/mq/sarama"
-	v "github.com/core-go/mq/validator"
+	"github.com/core-go/mq/validator"
 	"github.com/core-go/sql"
-	"github.com/go-playground/validator/v10"
+	val "github.com/go-playground/validator/v10"
 	_ "github.com/go-sql-driver/mysql"
 )
 
@@ -64,9 +64,9 @@ func NewApp(ctx context.Context, root Root) (*ApplicationContext, error) {
 		batchWorker = mq.NewDefaultBatchWorker(root.BatchWorkerConfig, batchHandler.Handle, nil, logError, logInfo)
 		healthHandler = health.NewHealthHandler(sqlChecker, receiverChecker)
 	}
-	checker := v.NewErrorChecker(NewUserValidator().Validate)
-	validator := mq.NewValidator(userType, checker.Check)
-	subscription := mq.NewSubscription(batchWorker.Handle, validator.Validate, logError, logInfo)
+	checker := validator.NewErrorChecker(NewUserValidator().Validate)
+	val := mq.NewValidator(userType, checker.Check)
+	subscription := mq.NewSubscription(batchWorker.Handle, val.Validate, logError, logInfo)
 
 	return &ApplicationContext{
 		HealthHandler: healthHandler,
@@ -76,11 +76,11 @@ func NewApp(ctx context.Context, root Root) (*ApplicationContext, error) {
 	}, nil
 }
 
-func NewUserValidator() v.Validator {
-	validator := v.NewDefaultValidator()
-	validator.CustomValidateList = append(validator.CustomValidateList, v.CustomValidate{Fn: CheckActive, Tag: "active"})
-	return validator
+func NewUserValidator() validator.Validator {
+	val := validator.NewDefaultValidator()
+	val.CustomValidateList = append(val.CustomValidateList, validator.CustomValidate{Fn: CheckActive, Tag: "active"})
+	return val
 }
-func CheckActive(fl validator.FieldLevel) bool {
+func CheckActive(fl val.FieldLevel) bool {
 	return fl.Field().Bool()
 }
