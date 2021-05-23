@@ -14,7 +14,7 @@ import (
 )
 
 type ApplicationContext struct {
-	HealthHandler *health.HealthHandler
+	HealthHandler *health.Handler
 	BatchWorker   mq.BatchWorker
 	Receive       func(ctx context.Context, handle func(context.Context, *mq.Message, error) error)
 	Subscription  *mq.Subscription
@@ -22,7 +22,7 @@ type ApplicationContext struct {
 
 func NewApp(ctx context.Context, root Root) (*ApplicationContext, error) {
 	log.Initialize(root.Log)
-	db, er1 := mongo.SetupMongo(ctx, root.Mongo)
+	db, er1 := mongo.Setup(ctx, root.Mongo)
 	if er1 != nil {
 		log.Error(ctx, "Cannot connect to MongoDB. Error: "+er1.Error())
 		return nil, er1
@@ -41,12 +41,12 @@ func NewApp(ctx context.Context, root Root) (*ApplicationContext, error) {
 	}
 
 	userType := reflect.TypeOf(User{})
-	batchWriter := mongo.NewBatchInserter(db, "user")
+	batchWriter := mongo.NewBatchWriter(db, "user", userType)
 	batchHandler := mq.NewBatchHandler(userType, batchWriter.Write, logError, logInfo)
 
 	mongoChecker := mongo.NewHealthChecker(db)
 	receiverChecker := kafka.NewKafkaHealthChecker(root.Reader.Brokers, "kafka_reader")
-	var healthHandler *health.HealthHandler
+	var healthHandler *health.Handler
 	var batchWorker mq.BatchWorker
 
 	if root.Writer != nil {
@@ -58,10 +58,10 @@ func NewApp(ctx context.Context, root Root) (*ApplicationContext, error) {
 		retryService := mq.NewRetryService(sender.Write, logError, logInfo)
 		batchWorker = mq.NewDefaultBatchWorker(root.BatchWorkerConfig, batchHandler.Handle, retryService.Retry, logError, logInfo)
 		senderChecker := kafka.NewKafkaHealthChecker(root.Writer.Brokers, "kafka_writer")
-		healthHandler = health.NewHealthHandler(mongoChecker, receiverChecker, senderChecker)
+		healthHandler = health.NewHandler(mongoChecker, receiverChecker, senderChecker)
 	} else {
 		batchWorker = mq.NewDefaultBatchWorker(root.BatchWorkerConfig, batchHandler.Handle, nil, logError, logInfo)
-		healthHandler = health.NewHealthHandler(mongoChecker, receiverChecker)
+		healthHandler = health.NewHandler(mongoChecker, receiverChecker)
 	}
 	checker := validator.NewErrorChecker(NewUserValidator().Validate)
 	validator := mq.NewValidator(userType, checker.Check)
