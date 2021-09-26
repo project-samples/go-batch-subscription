@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"reflect"
+	"strings"
 
 	"github.com/core-go/health"
 	mgo "github.com/core-go/mongo"
@@ -11,10 +12,11 @@ import (
 	"github.com/core-go/mq/sarama"
 	v "github.com/core-go/mq/validator"
 	"github.com/go-playground/validator/v10"
+	"github.com/google/uuid"
 )
 
 type ApplicationContext struct {
-	HealthHandler *health.HealthHandler
+	HealthHandler *health.Handler
 	BatchWorker   mq.BatchWorker
 	Receive       func(ctx context.Context, handle func(context.Context, *mq.Message, error) error)
 	Subscription  *mq.Subscription
@@ -22,7 +24,7 @@ type ApplicationContext struct {
 
 func NewApp(ctx context.Context, root Root) (*ApplicationContext, error) {
 	log.Initialize(root.Log)
-	db, er1 := mgo.SetupMongo(ctx, root.Mongo)
+	db, er1 := mgo.Setup(ctx, root.Mongo)
 	if er1 != nil {
 		log.Error(ctx, "Cannot connect to MongoDB. Error: "+er1.Error())
 		return nil, er1
@@ -41,16 +43,16 @@ func NewApp(ctx context.Context, root Root) (*ApplicationContext, error) {
 	}
 
 	userType := reflect.TypeOf(User{})
-	batchWriter := mgo.NewBatchInserter(db, "users")
-	batchHandler := mq.NewBatchHandler(userType, batchWriter.Write, logError, logInfo)
+	batchWriter := mgo.NewBatchInserter(db, "user")
+	batchHandler := mq.NewBatchHandler(batchWriter.Write, userType, logError, logInfo)
 
 	mongoChecker := mgo.NewHealthChecker(db)
 	receiverChecker := kafka.NewKafkaHealthChecker(root.Reader.Brokers, "kafka_reader")
-	var healthHandler *health.HealthHandler
+	var healthHandler *health.Handler
 	var batchWorker mq.BatchWorker
 
 	if root.Writer != nil {
-		sender, er3 := kafka.NewWriterByConfig(*root.Writer)
+		sender, er3 := kafka.NewWriterByConfig(*root.Writer, Generate)
 		if er3 != nil {
 			log.Error(ctx, "Cannot new a new sender. Error: "+er3.Error())
 			return nil, er3
@@ -58,10 +60,10 @@ func NewApp(ctx context.Context, root Root) (*ApplicationContext, error) {
 		retryService := mq.NewRetryService(sender.Write, logError, logInfo)
 		batchWorker = mq.NewDefaultBatchWorker(root.BatchWorkerConfig, batchHandler.Handle, retryService.Retry, logError, logInfo)
 		senderChecker := kafka.NewKafkaHealthChecker(root.Writer.Brokers, "kafka_writer")
-		healthHandler = health.NewHealthHandler(mongoChecker, receiverChecker, senderChecker)
+		healthHandler = health.NewHandler(mongoChecker, receiverChecker, senderChecker)
 	} else {
 		batchWorker = mq.NewDefaultBatchWorker(root.BatchWorkerConfig, batchHandler.Handle, nil, logError, logInfo)
-		healthHandler = health.NewHealthHandler(mongoChecker, receiverChecker)
+		healthHandler = health.NewHandler(mongoChecker, receiverChecker)
 	}
 	checker := v.NewErrorChecker(NewUserValidator().Validate)
 	validator := mq.NewValidator(userType, checker.Check)
@@ -82,4 +84,7 @@ func NewUserValidator() v.Validator {
 }
 func CheckActive(fl validator.FieldLevel) bool {
 	return fl.Field().Bool()
+}
+func Generate() string {
+	return strings.Replace(uuid.New().String(), "-", "", -1)
 }
