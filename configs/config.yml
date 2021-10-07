@@ -12,6 +12,11 @@ mongo:
   uri: mongodb+srv://dbUser:Demoaccount1@projectdemo.g0lah.mongodb.net
   database: masterdata
 
+cassandra:
+  uri: 127.0.0.1
+  username:
+  password:
+
 batch_worker:
   batch_size: 100
   timeout: 5000

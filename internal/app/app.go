@@ -1,16 +1,18 @@
+
 package app
 
 import (
 	"context"
-	"reflect"
-
+	"github.com/core-go/cassandra"
 	"github.com/core-go/health"
-	"github.com/core-go/mongo"
+	cas "github.com/core-go/health/cassandra"
 	"github.com/core-go/mq"
 	"github.com/core-go/mq/kafka"
 	"github.com/core-go/mq/log"
 	"github.com/core-go/mq/validator"
 	val "github.com/go-playground/validator/v10"
+	"github.com/gocql/gocql"
+	"reflect"
 )
 
 type ApplicationContext struct {
@@ -22,9 +24,14 @@ type ApplicationContext struct {
 
 func NewApp(ctx context.Context, root Root) (*ApplicationContext, error) {
 	log.Initialize(root.Log)
-	db, er1 := mongo.Setup(ctx, root.Mongo)
+	cluster := gocql.NewCluster(root.Cassandra.Uri)
+	cluster.Authenticator = gocql.PasswordAuthenticator{
+		Username: root.Cassandra.Username,
+		Password: root.Cassandra.Password,
+	}
+	session, er1 := cluster.CreateSession()
 	if er1 != nil {
-		log.Error(ctx, "Cannot connect to MongoDB. Error: "+er1.Error())
+		log.Error(ctx, "Cannot connect to Cassandra, Error: " + er1.Error())
 		return nil, er1
 	}
 
@@ -41,10 +48,10 @@ func NewApp(ctx context.Context, root Root) (*ApplicationContext, error) {
 	}
 
 	userType := reflect.TypeOf(User{})
-	batchWriter := mongo.NewBatchWriter(db, "user", userType)
+	batchWriter := 	cassandra.NewBatchWriter(session, "user.user", userType)
 	batchHandler := mq.NewBatchHandler(userType, batchWriter.Write, logError, logInfo)
 
-	mongoChecker := mongo.NewHealthChecker(db)
+	cassandraChecker := cas.NewHealthChecker(cluster)
 	receiverChecker := kafka.NewKafkaHealthChecker(root.Reader.Brokers, "kafka_reader")
 	var healthHandler *health.Handler
 	var batchWorker mq.BatchWorker
@@ -58,10 +65,10 @@ func NewApp(ctx context.Context, root Root) (*ApplicationContext, error) {
 		retryService := mq.NewRetryService(sender.Write, logError, logInfo)
 		batchWorker = mq.NewDefaultBatchWorker(root.BatchWorkerConfig, batchHandler.Handle, retryService.Retry, logError, logInfo)
 		senderChecker := kafka.NewKafkaHealthChecker(root.Writer.Brokers, "kafka_writer")
-		healthHandler = health.NewHandler(mongoChecker, receiverChecker, senderChecker)
+		healthHandler = health.NewHandler(cassandraChecker, receiverChecker, senderChecker)
 	} else {
 		batchWorker = mq.NewDefaultBatchWorker(root.BatchWorkerConfig, batchHandler.Handle, nil, logError, logInfo)
-		healthHandler = health.NewHandler(mongoChecker, receiverChecker)
+		healthHandler = health.NewHandler(cassandraChecker, receiverChecker)
 	}
 	checker := validator.NewErrorChecker(NewUserValidator().Validate)
 	validator := mq.NewValidator(userType, checker.Check)
