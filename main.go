@@ -22,6 +22,6 @@ func main() {
 	}
 
 	go server.Serve(conf.Server, app.HealthHandler.Check)
-	app.BatchWorker.Run(ctx)
-	app.Receive(ctx, app.Subscription.Receive)
+	app.Run(ctx)
+	app.Receive(ctx, app.Handle)
 }

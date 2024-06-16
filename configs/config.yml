@@ -12,10 +12,12 @@ mongo:
   uri: mongodb+srv://dbUser:Demoaccount1@projectdemo.g0lah.mongodb.net
   database: masterdata
 
-batch_worker:
-  batch_size: 100
-  timeout: 5000
+batch:
+  batch_size: 3
+  timeout: 18000
   limit_retry: 3
+  key: key
+  goroutines: false
 
 reader:
   brokers: tricycle-01.srvs.cloudkafka.com:9094

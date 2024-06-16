@@ -2,22 +2,21 @@ package app
 
 import (
 	"context"
-	"reflect"
 
 	"github.com/core-go/health"
 	"github.com/core-go/mongo"
+	"github.com/core-go/mongo/batch"
 	"github.com/core-go/mq"
 	"github.com/core-go/mq/kafka"
 	"github.com/core-go/mq/log"
-	"github.com/core-go/mq/validator"
-	val "github.com/go-playground/validator/v10"
+	v "github.com/core-go/mq/validator"
 )
 
 type ApplicationContext struct {
 	HealthHandler *health.Handler
-	BatchWorker   mq.BatchWorker
-	Receive       func(ctx context.Context, handle func(context.Context, *mq.Message, error) error)
-	Subscription  *mq.Subscription
+	Run           func(ctx context.Context)
+	Receive       func(context.Context, func(context.Context, []byte, map[string]string))
+	Handle        func(context.Context, []byte, map[string]string)
 }
 
 func NewApp(ctx context.Context, root Root) (*ApplicationContext, error) {
@@ -34,52 +33,38 @@ func NewApp(ctx context.Context, root Root) (*ApplicationContext, error) {
 		logInfo = log.InfoMsg
 	}
 
-	receiver, er2 := kafka.NewReaderByConfig(root.Reader, true)
+	receiver, er2 := kafka.NewReaderByConfig(root.Reader, logError, true)
 	if er2 != nil {
 		log.Error(ctx, "Cannot create a new receiver. Error: "+er2.Error())
 		return nil, er2
 	}
-
-	userType := reflect.TypeOf(User{})
-	batchWriter := mongo.NewBatchWriter(db, "user", userType)
-	batchHandler := mq.NewBatchHandler(userType, batchWriter.Write, logError, logInfo)
-
-	mongoChecker := mongo.NewHealthChecker(db)
+	mongoChecker := mongo.NewHealthChecker(db.Client())
 	receiverChecker := kafka.NewKafkaHealthChecker(root.Reader.Brokers, "kafka_reader")
-	var healthHandler *health.Handler
-	var batchWorker mq.BatchWorker
 
-	if root.Writer != nil {
-		sender, er3 := kafka.NewWriterByConfig(*root.Writer)
-		if er3 != nil {
-			log.Error(ctx, "Cannot new a new sender. Error: "+er3.Error())
-			return nil, er3
-		}
-		retryService := mq.NewRetryService(sender.Write, logError, logInfo)
-		batchWorker = mq.NewDefaultBatchWorker(root.BatchWorkerConfig, batchHandler.Handle, retryService.Retry, logError, logInfo)
-		senderChecker := kafka.NewKafkaHealthChecker(root.Writer.Brokers, "kafka_writer")
-		healthHandler = health.NewHandler(mongoChecker, receiverChecker, senderChecker)
-	} else {
-		batchWorker = mq.NewDefaultBatchWorker(root.BatchWorkerConfig, batchHandler.Handle, nil, logError, logInfo)
-		healthHandler = health.NewHandler(mongoChecker, receiverChecker)
+	batchWriter := batch.NewBatchInserter[User](db, "user")
+	batchHandler := mq.NewBatchHandler[User](batchWriter.Write)
+	validator, err := v.NewValidator[*User]()
+	if err != nil {
+		return nil, err
 	}
-	checker := validator.NewErrorChecker(NewUserValidator().Validate)
-	validator := mq.NewValidator(userType, checker.Check)
-	subscription := mq.NewSubscription(batchWorker.Handle, validator.Validate, logError, logInfo)
+	errorHandler := mq.NewErrorHandler[*User](logError)
+
+	sender, er3 := kafka.NewWriterByConfig(*root.Writer)
+	if er3 != nil {
+		log.Error(ctx, "Cannot new a new sender. Error: "+er3.Error())
+		return nil, er3
+	}
+	senderChecker := kafka.NewKafkaHealthChecker(root.Writer.Brokers, "kafka_writer")
+
+	batchWorker := mq.NewBatchWorkerByConfig[User](root.Batch, batchHandler.Handle, validator.Validate, errorHandler.RejectWithMap, errorHandler.HandleErrorWithMap, sender.Publish, logError, logInfo)
+	batchWorker.LogDebug = logInfo
+
+	healthHandler := health.NewHandler(mongoChecker, receiverChecker, senderChecker)
 
 	return &ApplicationContext{
 		HealthHandler: healthHandler,
-		BatchWorker:   batchWorker,
+		Run:           batchWorker.Run,
 		Receive:       receiver.Read,
-		Subscription:  subscription,
+		Handle:        batchWorker.Handle,
 	}, nil
-}
-
-func NewUserValidator() validator.Validator {
-	val := validator.NewDefaultValidator()
-	val.CustomValidateList = append(val.CustomValidateList, validator.CustomValidate{Fn: CheckActive, Tag: "active"})
-	return val
-}
-func CheckActive(fl val.FieldLevel) bool {
-	return fl.Field().Bool()
 }
