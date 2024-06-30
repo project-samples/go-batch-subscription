@@ -6,7 +6,7 @@ require (
 	github.com/core-go/config v1.0.1
 	github.com/core-go/health v1.0.0
 	github.com/core-go/mongo v0.5.9
-	github.com/core-go/mq v0.6.8
+	github.com/core-go/mq v0.6.10
 	go.mongodb.org/mongo-driver v1.15.0
 )
 
