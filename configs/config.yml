@@ -14,7 +14,7 @@ mongo:
 
 batch:
   batch_size: 3
-  timeout: 18000
+  timeout: 50000
   limit_retry: 3
   key: key
   goroutines: false

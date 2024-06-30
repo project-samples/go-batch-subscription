@@ -2,14 +2,19 @@ package app
 
 import (
 	"context"
+	"github.com/core-go/mongo/geo"
+
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 
 	"github.com/core-go/health"
-	"github.com/core-go/mongo"
-	"github.com/core-go/mongo/batch"
+	mgo "github.com/core-go/health/mongo"
 	"github.com/core-go/mq"
 	"github.com/core-go/mq/kafka"
 	"github.com/core-go/mq/log"
 	v "github.com/core-go/mq/validator"
+
+	"go-service/pkg/batch"
 )
 
 type ApplicationContext struct {
@@ -21,10 +26,13 @@ type ApplicationContext struct {
 
 func NewApp(ctx context.Context, root Root) (*ApplicationContext, error) {
 	log.Initialize(root.Log)
-	db, er1 := mongo.Setup(ctx, root.Mongo)
-	if er1 != nil {
-		log.Error(ctx, "Cannot connect to MongoDB. Error: "+er1.Error())
-		return nil, er1
+	client, err := mongo.Connect(ctx, options.Client().ApplyURI(root.Mongo.Uri))
+	if err != nil {
+		return nil, err
+	}
+	db := client.Database(root.Mongo.Database)
+	if err != nil {
+		return nil, err
 	}
 
 	logError := log.ErrorMsg
@@ -38,10 +46,11 @@ func NewApp(ctx context.Context, root Root) (*ApplicationContext, error) {
 		log.Error(ctx, "Cannot create a new receiver. Error: "+er2.Error())
 		return nil, er2
 	}
-	mongoChecker := mongo.NewHealthChecker(db.Client())
+	mongoChecker := mgo.NewHealthChecker(client)
 	receiverChecker := kafka.NewKafkaHealthChecker(root.Reader.Brokers, "kafka_reader")
 
-	batchWriter := batch.NewBatchInserter[User](db, "user")
+	mapper := geo.NewMapper[User]()
+	batchWriter := batch.NewBatchInserter[User](db, "user", mapper.ModelToDb)
 	batchHandler := mq.NewBatchHandler[User](batchWriter.Write)
 	validator, err := v.NewValidator[*User]()
 	if err != nil {
