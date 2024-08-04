@@ -2,13 +2,13 @@ package app
 
 import (
 	"github.com/core-go/health/server"
+	"github.com/core-go/kafka"
 	"github.com/core-go/mq"
-	"github.com/core-go/mq/kafka"
-	"github.com/core-go/mq/log"
+	"github.com/core-go/mq/zap"
 )
 
-type Root struct {
-	Server server.ServerConf   `mapstructure:"server"`
+type Config struct {
+	Server server.ServerConfig `mapstructure:"server"`
 	Log    log.Config          `mapstructure:"log"`
 	Mongo  MongoConfig         `mapstructure:"mongo"`
 	Batch  mq.BatchConfig      `mapstructure:"batch"`

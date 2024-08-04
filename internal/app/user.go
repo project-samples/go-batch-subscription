@@ -1,8 +1,9 @@
 package app
 
 import (
-	"github.com/core-go/mongo/geo"
 	"time"
+
+	"github.com/core-go/mongo/geo"
 )
 
 type User struct {
