@@ -14,25 +14,23 @@ mongo:
 
 batch:
   batch_size: 3
-  timeout: 50000
+  timeout: 39000
   limit_retry: 3
   key: key
   goroutines: false
 
-reader:
-  brokers: tricycle-01.srvs.cloudkafka.com:9094
+sub:
+  subscription_id: users-sub
+  subscription:
+    max_outstanding_messages: 10000000
+    num_goroutines: 5
   client:
-    username: ah1t9hk0
-    password: QvMB75cxJ48KYRnGfwXcRNxzALyAeb7-
-  group_id: my-group
-  topic: ah1t9hk0-default
+    credentials:
 
-writer:
-  brokers:
-    - tricycle-01.srvs.cloudkafka.com:9094
-    - tricycle-02.srvs.cloudkafka.com:9094
-    - tricycle-03.srvs.cloudkafka.com:9094
+pub:
+  topic_id: users
+  topic:
+    delay_threshold: 100
+    count_threshold: 1
   client:
-    username: ah1t9hk0
-    password: QvMB75cxJ48KYRnGfwXcRNxzALyAeb7-
-  topic: ah1t9hk0-default
+    credentials:

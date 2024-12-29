@@ -22,7 +22,7 @@ func main() {
 		panic(er2)
 	}
 
-	go server.Serve(cfg.Server, app.HealthHandler.Check)
+	go server.Serve(cfg.Server, app.Health.Check)
 	app.Run(ctx)
-	app.Read(ctx, app.Handle)
+	app.Receive(ctx, app.Handle)
 }

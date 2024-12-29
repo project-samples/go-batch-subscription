@@ -2,18 +2,18 @@ package app
 
 import (
 	"github.com/core-go/health/server"
-	"github.com/core-go/kafka"
 	"github.com/core-go/mq"
-	"github.com/core-go/mq/zap"
+	"github.com/core-go/mq/pubsub"
+	log "github.com/core-go/mq/zap"
 )
 
 type Config struct {
-	Server server.ServerConfig `mapstructure:"server"`
-	Log    log.Config          `mapstructure:"log"`
-	Mongo  MongoConfig         `mapstructure:"mongo"`
-	Batch  mq.BatchConfig      `mapstructure:"batch"`
-	Reader kafka.ReaderConfig  `mapstructure:"reader"`
-	Writer *kafka.WriterConfig `mapstructure:"writer"`
+	Server server.ServerConfig     `mapstructure:"server"`
+	Log    log.Config              `mapstructure:"log"`
+	Mongo  MongoConfig             `mapstructure:"mongo"`
+	Sub    pubsub.SubscriberConfig `mapstructure:"sub"`
+	Pub    *pubsub.PublisherConfig `mapstructure:"pub"`
+	Batch  mq.BatchConfig          `mapstructure:"batch"`
 }
 
 type MongoConfig struct {

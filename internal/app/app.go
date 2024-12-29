@@ -6,54 +6,50 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 
+	// "github.com/core-go/firestore"
+	//"github.com/core-go/firestore/batch"
 	"github.com/core-go/health"
-	mgo "github.com/core-go/health/mongo"
-	"github.com/core-go/kafka"
+	mh "github.com/core-go/health/mongo"
 	"github.com/core-go/mongo/batch"
-	"github.com/core-go/mongo/geo"
 	"github.com/core-go/mq"
+	"github.com/core-go/mq/pubsub"
 	v "github.com/core-go/mq/validator"
 	"github.com/core-go/mq/zap"
 )
 
 type ApplicationContext struct {
-	HealthHandler *health.Handler
-	Run           func(ctx context.Context)
-	Read          func(context.Context, func(context.Context, []byte, map[string]string))
-	Handle        func(context.Context, []byte, map[string]string)
+	Health  *health.Handler
+	Run     func(ctx context.Context)
+	Receive func(context.Context, func(context.Context, []byte, map[string]string))
+	Handle  func(context.Context, []byte, map[string]string)
 }
 
 func NewApp(ctx context.Context, cfg Config) (*ApplicationContext, error) {
 	log.Initialize(cfg.Log)
 	client, err := mongo.Connect(ctx, options.Client().ApplyURI(cfg.Mongo.Uri))
-	if err != nil {
-		return nil, err
-	}
 	db := client.Database(cfg.Mongo.Database)
 	if err != nil {
 		return nil, err
 	}
+	/*
+		client, er1 := firestore.Connect(ctx, []byte(cfg.Firestore.Credentials))
+		if er1 != nil {
+			return nil, er1
+		}*/
 
 	logError := log.ErrorMsg
 	var logInfo func(context.Context, string)
 	if log.IsInfoEnable() {
 		logInfo = log.InfoMsg
 	}
-	var logDebug func(context.Context, string)
-	if log.IsDebugEnable() {
-		logDebug = log.DebugMsg
-	}
 
-	reader, er2 := kafka.NewReaderByConfig(cfg.Reader, logError, true)
+	receiver, er2 := pubsub.NewSubscriberByConfig(ctx, cfg.Sub, logError, true)
 	if er2 != nil {
-		log.Error(ctx, "Cannot create a new reader. Error: "+er2.Error())
+		log.Error(ctx, "Cannot create a new receiver. Error: "+er2.Error())
 		return nil, er2
 	}
-	mongoChecker := mgo.NewHealthChecker(client)
-	receiverChecker := kafka.NewKafkaHealthChecker(cfg.Reader.Brokers, "kafka_reader")
 
-	mapper := geo.NewMapper[User]()
-	batchWriter := batch.NewBatchWriter[User](db, "user", mapper.ModelToDb)
+	batchWriter := batch.NewBatchInserter[User](db, "user")
 	batchHandler := mq.NewBatchHandler[User](batchWriter.Write)
 	validator, err := v.NewValidator[*User]()
 	if err != nil {
@@ -61,22 +57,23 @@ func NewApp(ctx context.Context, cfg Config) (*ApplicationContext, error) {
 	}
 	errorHandler := mq.NewErrorHandler[*User](logError)
 
-	sender, er3 := kafka.NewWriterByConfig(*cfg.Writer)
+	mongoChecker := mh.NewHealthChecker(client)
+	receiverChecker := pubsub.NewSubHealthChecker("pubsub_subscriber", receiver.Client, cfg.Sub.SubscriptionId)
+
+	sender, er3 := pubsub.NewPublisherByConfig(ctx, *cfg.Pub)
 	if er3 != nil {
 		log.Error(ctx, "Cannot new a new sender. Error: "+er3.Error())
 		return nil, er3
 	}
-	senderChecker := kafka.NewKafkaHealthChecker(cfg.Writer.Brokers, "kafka_writer")
-
-	batchWorker := mq.NewBatchWorkerByConfig[User](cfg.Batch, batchHandler.Handle, validator.Validate, errorHandler.RejectWithMap, errorHandler.HandleErrorWithMap, sender.Write, logError, logInfo, logDebug)
+	batchWorker := mq.NewBatchWorkerByConfig[User](cfg.Batch, batchHandler.Handle, validator.Validate, errorHandler.RejectWithMap, errorHandler.HandleErrorWithMap, sender.Publish, logError, logInfo, log.DebugMsg)
 	batchWorker.LogDebug = logInfo
-
+	senderChecker := pubsub.NewPubHealthChecker("pubsub_publisher", sender.Client, cfg.Pub.TopicId)
 	healthHandler := health.NewHandler(mongoChecker, receiverChecker, senderChecker)
 
 	return &ApplicationContext{
-		HealthHandler: healthHandler,
-		Run:           batchWorker.Run,
-		Read:          reader.Read,
-		Handle:        batchWorker.Handle,
+		Health:  healthHandler,
+		Run:     batchWorker.Run,
+		Receive: receiver.Subscribe,
+		Handle:  batchWorker.Handle,
 	}, nil
 }
